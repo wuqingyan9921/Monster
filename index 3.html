@@ -1,0 +1,1462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Open Your Eyes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap">
+<script src="https://static.sketchfab.com/api/sketchfab-viewer-1.12.1.js"></script>
+<style>
+/* Layout: one fixed screen. #stage holds the scene layers (cables.gl house, line-art graveyard, shadow figure, fog);
+   #world adds eyelids, black-outs and game text and can shake as a whole. The old-film layer, the white flash and the loader sit above. */
+:root{
+  --ink:#0b0a09;        /* projector black, faintly warm */
+  --bone:#eee8da;       /* silver-print white */
+  --ash:#9a9385;
+  --flash:#fffdf7;
+  --dawn:#f3e6cf;       /* the real world, warm and in colour */
+  --dawn-ink:#3a2c1e;
+  --f-goth:"UnifrakturMaguntia","Old English Text MT","Goudy Text MT",serif;
+  --f-fell:"IM Fell English","Iowan Old Style",Georgia,serif;
+  --f-sc:"IM Fell English SC","IM Fell English",Georgia,serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--ink);color:var(--bone);overflow:hidden;
+  font-family:var(--f-fell);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit}
+
+/* ---------- world / stage ---------- */
+#world{position:fixed;inset:0;z-index:1;will-change:transform}
+#stage{position:absolute;inset:0;z-index:1;overflow:hidden;transform-origin:50% 50%;will-change:transform;background:#000}
+#vViscera{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;background:var(--ink);z-index:1;opacity:0}
+/* the cables.gl scene is rendered larger than the screen so the "camera" can pan across it */
+#bgWrap{position:absolute;inset:0;z-index:2;transform-origin:40% 58%;will-change:transform,opacity}
+#vHouse{position:absolute;left:-12vw;top:-8vh;width:124vw;height:116vh;border:0;pointer-events:none;background:#000;transform-origin:0 0}
+#vHouse.pix{image-rendering:pixelated}
+#yard,#fog{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#yard{z-index:3;image-rendering:pixelated}
+#fog{z-index:5;image-rendering:pixelated}
+
+#shade{position:absolute;z-index:4;left:50%;bottom:3vh;height:76vh;aspect-ratio:250/540;max-width:100%;transform:translateX(-50%);
+  opacity:0;pointer-events:none;transform-origin:50% 100%;filter:drop-shadow(0 0 6px rgba(238,232,218,.35))}
+#shade svg{width:100%;height:100%;display:block;overflow:visible}
+
+/* the real world: morning light through blinds */
+#real{position:absolute;inset:0;z-index:2;overflow:hidden;filter:blur(14px);transition:filter 4.5s ease;
+  background:radial-gradient(ellipse 80% 70% at 72% 28%, #fff8ea 0%, var(--dawn) 42%, #d9bf9a 78%, #b89a74 100%)}
+#real.focus{filter:blur(0)}
+#real::before{content:"";position:absolute;right:-8%;top:-12%;width:70%;height:95%;transform:rotate(-14deg) skewX(-10deg);filter:blur(5px);opacity:.75;
+  background:repeating-linear-gradient(180deg, rgba(255,252,240,.95) 0 26px, rgba(255,252,240,0) 26px 44px);
+  -webkit-mask-image:linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent);mask-image:linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent)}
+#real::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse 120% 90% at 50% 50%, transparent 55%, rgba(90,60,30,.35) 100%)}
+
+#axe{position:absolute;z-index:5;left:50%;top:50%;width:140vmin;height:140vmin;margin:-70vmin 0 0 -70vmin;opacity:0;pointer-events:none;
+  filter:blur(6px);transform-origin:50% 95%}
+#axe svg{width:100%;height:100%;display:block}
+
+#lids{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden}
+.lid{position:absolute;left:-15%;width:130%;height:62%;background:#000;filter:blur(22px)}
+.lid.top{top:0;border-radius:0 0 50% 50% / 0 0 38% 38%;transform:translateY(-110%)}
+.lid.bottom{bottom:0;border-radius:50% 50% 0 0 / 38% 38% 0 0;transform:translateY(110%)}
+
+#black{position:absolute;inset:-6%;z-index:7;background:#000;opacity:0;pointer-events:none}
+
+/* ---------- old film layer ---------- */
+#grain,#dust{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;transition:opacity 3s ease}
+#grain{z-index:10;opacity:.13;mix-blend-mode:overlay}
+#dust{z-index:11;opacity:.5}
+#vignette{position:fixed;inset:0;z-index:12;pointer-events:none;transition:opacity 3s ease;
+  background:radial-gradient(ellipse 75% 70% at 50% 48%, transparent 52%, rgba(0,0,0,.55) 82%, rgba(0,0,0,.9) 100%)}
+#gate{position:fixed;inset:1.1vmin;z-index:13;pointer-events:none;border-radius:2.6vmin;transition:opacity 3s ease;
+  box-shadow:0 0 0 4vmin #050404, inset 0 0 5vmin 1vmin rgba(0,0,0,.85)}
+#flicker{position:fixed;inset:0;z-index:14;pointer-events:none;background:#000;opacity:0}
+body.real #grain,body.real #dust,body.real #vignette,body.real #gate{opacity:0}
+
+/* ---------- game text ---------- */
+#ui{position:absolute;inset:0;z-index:8;pointer-events:none;
+  padding:env(safe-area-inset-top,0px) max(16px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(16px,env(safe-area-inset-left,0px))}
+#ui section{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+#title{justify-content:center;gap:1.6rem;text-align:center;
+  background:radial-gradient(ellipse 62% 36% at 50% 50%, rgba(0,0,0,.72), rgba(0,0,0,.35) 60%, transparent 100%)}
+#title::before{content:"";position:absolute;left:50%;top:50%;width:min(80vw,62rem);height:min(30vw,16rem);transform:translate(-50%,-58%);
+  border-radius:50%;background:radial-gradient(ellipse at center, rgba(255,246,222,.22), rgba(255,240,210,.07) 45%, transparent 70%);
+  filter:blur(18px);opacity:0;transition:opacity 2.5s ease 1.4s;pointer-events:none}
+#title.ready::before{opacity:1;animation:halo 3.6s ease-in-out 3.8s infinite alternate}
+@keyframes halo{from{opacity:.65;transform:translate(-50%,-58%) scale(.96)}to{opacity:1;transform:translate(-50%,-58%) scale(1.05)}}
+#wake{position:relative;pointer-events:auto;cursor:pointer;background:none;border:0;padding:.1em .3em;
+  font-family:var(--f-goth);font-weight:400;font-size:clamp(3.2rem,11vw,9.5rem);line-height:1;color:#fffbf1;letter-spacing:.01em;text-wrap:balance;
+  text-shadow:0 0 .03em #fff,0 0 .1em rgba(255,250,232,.9),0 0 .26em rgba(255,240,208,.6),0 0 .6em rgba(255,232,192,.38),0 0 1.3em rgba(255,226,180,.22)}
+#wake.in{animation:glow 3.6s ease-in-out 2.6s infinite alternate}
+@keyframes glow{
+  from{text-shadow:0 0 .03em #fff,0 0 .08em rgba(255,250,232,.8),0 0 .2em rgba(255,240,208,.5),0 0 .5em rgba(255,232,192,.3),0 0 1.1em rgba(255,226,180,.16)}
+  to{text-shadow:0 0 .04em #fff,0 0 .13em rgba(255,252,238,1),0 0 .34em rgba(255,242,212,.75),0 0 .8em rgba(255,234,196,.5),0 0 1.7em rgba(255,228,184,.32)}
+}
+#wake.dip{opacity:.62}
+#wake .ch{display:inline-block;opacity:0;filter:blur(8px);transform:translateY(.12em)}
+#wake.in .ch{animation:inkIn 1.6s cubic-bezier(.2,.7,.2,1) forwards}
+@keyframes inkIn{to{opacity:1;filter:blur(0);transform:none}}
+#wake:hover,#wake:focus-visible{color:#fff}
+#wake:focus-visible{outline:1px solid rgba(238,232,218,.6);outline-offset:.25em}
+#wake.leaving .ch{animation:inkOut .7s ease-in forwards !important}
+@keyframes inkOut{from{opacity:1}to{opacity:0;filter:blur(14px);transform:translateY(-.15em) scale(1.25)}}
+.hint{margin:0;font-family:var(--f-sc);font-size:clamp(.8rem,1.8vw,1rem);letter-spacing:.32em;color:var(--bone);text-shadow:0 1px 6px #000;
+  opacity:0;transition:opacity 2s ease 2s}
+#title.ready .hint{opacity:.62}
+#title.gone .hint{opacity:0;transition:opacity .4s}
+
+#dialog{justify-content:flex-end;gap:clamp(1.4rem,4vh,2.4rem);padding-bottom:max(9vh,calc(env(safe-area-inset-bottom,0px) + 4.5rem));
+  background:linear-gradient(to top, rgba(0,0,0,.72) 0%, rgba(0,0,0,.35) 30%, transparent 55%);transition:opacity .9s ease}
+#dialog.dim{opacity:0}
+#dialog.center{justify-content:center;padding-bottom:0;background:none}
+#dialog.light{background:none}
+#line{margin:0;min-height:1.2em;max-width:min(92vw,58rem);font-family:var(--f-fell);font-style:italic;font-size:clamp(2rem,6.4vw,4.2rem);
+  line-height:1.15;text-align:center;color:var(--bone);text-shadow:0 .06em .5em rgba(0,0,0,.9);text-wrap:balance;transition:opacity .8s ease}
+#line.out{opacity:0}
+#line .ch{display:inline-block;white-space:pre;animation:tremble .16s steps(2,end) infinite}
+#line.shout{font-size:clamp(1.9rem,6vw,4rem);font-style:normal;letter-spacing:.01em;text-shadow:0 0 .3em rgba(0,0,0,.95),0 .06em .5em #000}
+#line.shout .ch{animation-duration:.08s}
+#line.voice{font-family:var(--f-goth);font-style:normal;font-size:clamp(2.2rem,7vw,5rem);line-height:1.1;color:#fffbf1;
+  text-shadow:0 0 .1em rgba(255,250,232,.85),0 0 .4em rgba(255,236,200,.45),0 0 1.1em rgba(255,226,180,.25)}
+#line.thought{font-size:clamp(1.5rem,4.4vw,2.8rem);color:#d8d1c2}
+#line.thought .ch,#line.real .ch{animation:none}
+#line.real{font-size:clamp(1.5rem,4.6vw,2.8rem);color:var(--dawn-ink);text-shadow:none}
+@keyframes tremble{
+  0%{transform:translate(0,0) rotate(0)}
+  50%{transform:translate(var(--jx,.03em),var(--jy,-.03em)) rotate(var(--jr,.6deg))}
+}
+#choices{width:100%;display:flex;flex-wrap:wrap;justify-content:center;gap:1rem 1.4rem}
+.choice{pointer-events:auto;cursor:pointer;font-family:var(--f-sc);font-size:clamp(1.05rem,2.6vw,1.4rem);letter-spacing:.1em;
+  color:var(--bone);background:rgba(10,9,8,.82);border:1px solid rgba(238,232,218,.6);
+  outline:1px solid rgba(238,232,218,.22);outline-offset:5px;padding:.8em 1.7em;min-width:min(100%,15rem);
+  opacity:0;transform:translateY(.6rem);transition:background .25s,color .25s,outline-color .25s}
+.choice.show{animation:cardIn .9s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes cardIn{to{opacity:1;transform:none}}
+.choice:hover{background:var(--bone);color:var(--ink);outline-color:rgba(238,232,218,.6)}
+.choice:focus-visible{outline:2px solid var(--bone);outline-offset:6px}
+.choice:disabled{cursor:default}
+
+#end{justify-content:center;gap:1.6rem;text-align:center;opacity:0;transition:opacity 2.4s ease}
+#end.show{opacity:1}
+#end h2{margin:0;font-weight:400;line-height:1.05;text-wrap:balance}
+#end.good h2{font-family:var(--f-sc);font-size:clamp(2.4rem,8vw,5.5rem);letter-spacing:.32em;padding-left:.32em;color:var(--dawn-ink)}
+#end.good p{margin:0;font-style:italic;font-size:clamp(1rem,2.4vw,1.25rem);color:#6b5640}
+#end.tbc{justify-content:flex-end;padding-bottom:max(8vh,calc(env(safe-area-inset-bottom,0px) + 4.5rem));background:linear-gradient(to top, rgba(0,0,0,.7), transparent 40%)}
+#end.tbc h2{font-family:var(--f-goth);font-size:clamp(2rem,6vw,3.6rem);color:#fffbf1;text-shadow:0 0 .3em rgba(255,236,200,.35)}
+#end.fail h2{font-family:var(--f-fell);font-style:italic;font-size:clamp(1.3rem,3.4vw,2rem);max-width:34rem;line-height:1.35}
+#restart{pointer-events:auto;cursor:pointer;background:none;border:1px solid currentColor;padding:.7em 1.6em;
+  font-family:var(--f-sc);letter-spacing:.14em;font-size:1rem;color:var(--bone)}
+#end.good #restart{color:var(--dawn-ink)}
+#restart:hover,#restart:focus-visible{background:var(--bone);color:var(--ink)}
+#end.good #restart:hover,#end.good #restart:focus-visible{background:var(--dawn-ink);color:var(--dawn)}
+
+/* ---------- flash, loader, chrome ---------- */
+#flash{position:fixed;inset:0;z-index:40;background:var(--flash);opacity:0;pointer-events:none}
+#loader{position:fixed;inset:0;z-index:50;background:#000;overflow:hidden;transition:opacity 1.6s ease}
+#loader.gone{opacity:0;pointer-events:none}
+#slit{position:absolute;left:-10%;right:-10%;top:50%;height:64vh;margin-top:-32vh;opacity:0;transform:scaleY(.02);filter:blur(16px);
+  background:radial-gradient(ellipse 50% 50% at 50% 50%, rgba(255,251,240,.95) 0%, rgba(255,248,232,.45) 34%, rgba(255,245,225,0) 70%)}
+#haze{position:absolute;inset:0;background:#fffbf2;opacity:0}
+#loadText{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 12vh);margin:0;padding-inline:16px;text-align:center;
+  font-family:var(--f-sc);letter-spacing:.3em;font-size:.85rem;color:#5d584f}
+#loadText.err{font-family:var(--f-fell);letter-spacing:0;font-size:1rem;color:var(--bone);bottom:auto;top:50%;transform:translateY(-50%);line-height:1.5}
+
+#sound{position:fixed;z-index:60;left:calc(max(16px,env(safe-area-inset-left,0px)) + .4rem);bottom:calc(env(safe-area-inset-bottom,0px) + 1rem);
+  display:flex;align-items:center;gap:.45rem;background:none;border:0;cursor:pointer;padding:.4rem;
+  font-family:var(--f-sc);font-size:.8rem;letter-spacing:.18em;color:var(--ash);opacity:.7}
+#sound:hover,#sound:focus-visible{opacity:1;color:var(--bone)}
+#sound svg{width:1.1rem;height:1.1rem}
+#credits{position:fixed;z-index:60;right:calc(max(16px,env(safe-area-inset-right,0px)) + .4rem);bottom:calc(env(safe-area-inset-bottom,0px) + 1.1rem);
+  margin:0;max-width:62vw;text-align:right;font-family:var(--f-fell);font-style:italic;font-size:.72rem;line-height:1.4;color:var(--ash);opacity:.6}
+#credits a{color:inherit}
+#credits a:hover{color:var(--bone)}
+body.real #sound,body.real #credits{color:#7a6650}
+@media (max-width:560px){#credits{display:none}}
+
+@media (prefers-reduced-motion:reduce){
+  #line .ch{animation:none}
+  #wake .ch{filter:none}
+  #wake.in,#title.ready::before{animation:none}
+}
+</style>
+</head>
+<body>
+
+<div id="world">
+  <div id="stage">
+    <iframe id="vViscera" title="Sublime Viscera scene" allow="autoplay; fullscreen; xr-spatial-tracking"></iframe>
+    <div id="bgWrap"><iframe id="vHouse" title="Haunted house (cables.gl)" allow="autoplay" tabindex="-1"></iframe></div>
+    <canvas id="yard" aria-hidden="true"></canvas>
+    <div id="shade" aria-hidden="true">
+      <svg viewBox="0 0 250 540" preserveAspectRatio="xMidYMax meet">
+        <defs>
+          <filter id="smoke" x="-30%" y="-10%" width="160%" height="125%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.022 0.045" numOctaves="3" seed="7" result="n">
+              <animate attributeName="baseFrequency" dur="5s" values="0.022 0.045;0.027 0.052;0.022 0.045" repeatCount="indefinite"/>
+            </feTurbulence>
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="18" xChannelSelector="R" yChannelSelector="G"/>
+            <feGaussianBlur stdDeviation="0.9"/>
+          </filter>
+          <radialGradient id="eyeG"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+        </defs>
+        <!-- dark body, pale edge: drawn to sit in the edge-detected world -->
+        <g filter="url(#smoke)" fill="#030303" stroke="#ece6d8" stroke-width="3.2" stroke-linejoin="round">
+          <ellipse cx="110" cy="62" rx="23" ry="28"/>
+          <path d="M88 96 C78 104 60 112 54 134 C47 176 51 238 55 290 C59 350 52 430 44 528 L66 520 L78 536 L92 522 L108 538 L122 522 L136 536 L150 520 L172 528 C165 430 160 350 164 290 C168 238 172 176 166 134 C160 112 142 104 132 96 C122 88 98 88 88 96 Z"/>
+          <path d="M58 134 C44 178 40 250 42 322 L48 344 C56 347 61 340 59 330 C57 262 61 190 68 146 Z"/>
+          <path d="M160 132 C174 156 180 228 182 306 L188 338 C184 347 172 345 170 336 L166 306 C162 236 158 176 150 146 Z"/>
+          <path d="M175 326 L185 324 L199 478 L189 480 Z"/>
+          <path d="M190 438 C212 424 238 438 242 470 C228 465 210 471 200 486 Z"/>
+        </g>
+        <ellipse cx="101" cy="60" rx="4.5" ry="1.7" fill="url(#eyeG)"/>
+        <ellipse cx="119" cy="60" rx="4.5" ry="1.7" fill="url(#eyeG)"/>
+      </svg>
+    </div>
+    <canvas id="fog" aria-hidden="true"></canvas>
+  </div>
+
+  <div id="real" hidden aria-hidden="true"></div>
+
+  <div id="axe" aria-hidden="true">
+    <svg viewBox="0 0 400 400">
+      <g fill="#020202" stroke="#d9d3c6" stroke-width="3">
+        <rect x="191" y="44" width="18" height="340" rx="8"/>
+        <path d="M206 46 C252 24 304 34 334 76 C304 96 294 126 304 166 C262 146 232 146 206 156 Z"/>
+        <path d="M194 72 L168 76 L168 116 L194 120 Z"/>
+      </g>
+    </svg>
+  </div>
+
+  <div id="lids" aria-hidden="true"><div class="lid top"></div><div class="lid bottom"></div></div>
+  <div id="black" aria-hidden="true"></div>
+
+  <main id="ui">
+    <section id="title" hidden>
+      <button id="wake" type="button" aria-label="Open your eyes"></button>
+      <p class="hint">click to wake</p>
+    </section>
+
+    <section id="dialog" hidden>
+      <p id="line" aria-live="polite"></p>
+      <div id="choices"></div>
+    </section>
+
+    <section id="end" hidden></section>
+  </main>
+</div>
+
+<canvas id="grain" aria-hidden="true"></canvas>
+<canvas id="dust" aria-hidden="true"></canvas>
+<div id="vignette" aria-hidden="true"></div>
+<div id="gate" aria-hidden="true"></div>
+<div id="flicker" aria-hidden="true"></div>
+
+<div id="flash" aria-hidden="true"></div>
+
+<div id="loader" role="status">
+  <div id="slit"></div>
+  <div id="haze"></div>
+  <p id="loadText">Loading</p>
+</div>
+
+<button id="sound" type="button" aria-pressed="true">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="w" d="M15.5 9a4.2 4.2 0 0 1 0 6"/><path class="w" d="M18 6.5a7.6 7.6 0 0 1 0 11"/>
+  </svg>
+  <span>Sound on</span>
+</button>
+
+<p id="credits">
+  <a href="https://cables.gl/p/CmRmF0" target="_blank" rel="noopener">haunted house</a> by nickypy (cables.gl) ·
+  <a href="https://sketchfab.com/3d-models/ravencrest-manor-haunted-house-d4dbd3d3911c4920b600056b962a3085" target="_blank" rel="noopener">Ravencrest Manor</a> by Brian Trepanier ·
+  <a href="https://sketchfab.com/3d-models/sublime-viscera-visual-immersion-scene-a2f1e0b9be644aa0958548762596748c" target="_blank" rel="noopener">Sublime Viscera</a> by kingklaus · CC BY
+</p>
+
+<script>
+(() => {
+"use strict";
+
+/* ============================================================
+   CONFIG
+   The house scene is the cables.gl patch, shown through its official embed.
+   Its camera can't be steered from outside, so "where you stand" is a virtual
+   view {x, z, yaw, h, pitch}: the patch is panned and zoomed, and the graveyard
+   and fog layers are drawn in perspective from the same view.
+   x = sideways (m), z = towards the house (m), yaw 0 = facing the house, + = turning right.
+   ============================================================ */
+const CABLES_URL     = "https://cables.gl/view/CmRmF0";
+const CABLES_SETTLE  = 6500;   // the patch loads a 24 MB model after its page loads
+const VISCERA_UID    = "a2f1e0b9be644aa0958548762596748c";
+const VISCERA_CAM    = { p: [0, -6.6, 3.1], t: [0, 0, 2.4], fov: 62 };
+const WAKE_MS        = 9500;
+
+const WAKE_SPOT = { x: 0, z: 0, yaw: 0, h: 1.6, pitch: 0, zoom: 0 };
+const WALK = [                       // [x, z, yaw on arrival, seconds]
+  [6, 9, 0.5, 5.0],
+  [13, 22, -0.1, 4.6],
+  [9, 35, -0.9, 4.6, "glimpse"],
+  [-6, 40, -2.0, 4.6],
+  [-15, 28, -2.7, 5.2]
+];
+const RUSH = [[-10, 44, 0.25, 2.3], [0, 58, 0, 2.5]];
+const ENTRANCE = { x: 0, z: 58, yaw: 0 };
+const DOOR = { x: 0, z: 66, yaw: 0, h: 1.6, pitch: 0, zoom: 0.45 };
+
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+const rand = (a, b) => a + Math.random() * (b - a);
+
+const els = {
+  world: $("#world"), stage: $("#stage"), bgWrap: $("#bgWrap"), vHouse: $("#vHouse"), vViscera: $("#vViscera"),
+  yard: $("#yard"), fog: $("#fog"), real: $("#real"), shade: $("#shade"), axe: $("#axe"),
+  lidTop: $(".lid.top"), lidBot: $(".lid.bottom"), black: $("#black"),
+  grain: $("#grain"), dust: $("#dust"), flicker: $("#flicker"),
+  title: $("#title"), wake: $("#wake"), dialog: $("#dialog"), line: $("#line"), choices: $("#choices"), end: $("#end"),
+  flash: $("#flash"), loader: $("#loader"), slit: $("#slit"), haze: $("#haze"), loadText: $("#loadText"),
+  sound: $("#sound")
+};
+
+let visceraApi = null, visceraP = null, visceraProgress = 0;
+
+/* ============================================================
+   VIEW — the virtual camera, with tweens
+   ============================================================ */
+const EASE = {
+  linear: p => p, in: p => p * p, out: p => 1 - (1 - p) * (1 - p),
+  inOut: p => p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2,
+  outCubic: p => 1 - Math.pow(1 - p, 3)
+};
+const View = {
+  x: 0, z: 0, yaw: 0, h: 1.6, pitch: 0, zoom: 0, bgFade: 1, drift: false,
+  tweens: [],
+  to(target, sec, ease = "inOut") {
+    return new Promise(resolve => {
+      this.tweens = this.tweens.filter(t => {
+        for (const k in target) if (k in t.to) { t.resolve(); return false; }
+        return true;
+      });
+      if (!(sec > 0)) { Object.assign(this, target); resolve(); return; }
+      const from = {}; for (const k in target) from[k] = this[k];
+      this.tweens.push({ from, to: target, start: performance.now(), dur: sec * 1000, ease: EASE[ease] || EASE.inOut, resolve });
+      setTimeout(resolve, sec * 1000 + 50);   // keeps the story moving even if frames are throttled
+    });
+  },
+  step(now) {
+    this.tweens = this.tweens.filter(t => {
+      const p = clamp01((now - t.start) / t.dur), e = t.ease(p);
+      for (const k in t.to) this[k] = t.from[k] + (t.to[k] - t.from[k]) * e;
+      if (p >= 1) { t.resolve(); return false; }
+      return true;
+    });
+  }
+};
+
+/* ============================================================
+   THE CABLES.GL HOUSE (background)
+   ============================================================ */
+let mosaicK = 1, bgHideUntil = 0;
+function setMosaic(block) {                // block = size of a mosaic tile in CSS px, 1 = off
+  const dpr = Math.min(devicePixelRatio || 1, 2);   // the patch renders at up to 2x
+  const k = block <= 1 ? 1 : Math.max(2, Math.round(block * dpr));
+  if (k === mosaicK) return;
+  mosaicK = k;
+  // the patch needs a few frames to redraw at its new size; blank it meanwhile (reads as vision flickering)
+  bgHideUntil = performance.now() + 170;
+  const f = els.vHouse;
+  if (k === 1) {
+    f.style.width = f.style.height = f.style.transform = "";
+    f.classList.remove("pix");
+  } else {
+    // render the patch k times smaller, then blow it up without smoothing
+    f.style.width = `calc(124vw / ${k})`; f.style.height = `calc(116vh / ${k})`;
+    f.style.transform = `scale(${k})`;
+    f.classList.add("pix");
+  }
+  Yard.setBlock(block); FogGL.setBlock(block);
+}
+let bgLast = "";
+function applyBackground() {
+  const W = innerWidth, H = innerHeight, f = H * 1.05;
+  const yw = Math.atan2(Math.sin(View.yaw), Math.cos(View.yaw));
+  const vis = performance.now() < bgHideUntil ? 0 : (1 - smooth(0.3, 0.95, Math.abs(yw))) * View.bgFade;
+  const panX = Math.max(-0.11 * W, Math.min(0.11 * W, -yw * f * 0.8 - View.x * 5));
+  const panY = -View.pitch * H * 0.9 + (1.6 - View.h) * H * 0.05;
+  const zoom = 1 + View.z * 0.011 + View.zoom;
+  const tf = `translate(${panX.toFixed(1)}px,${panY.toFixed(1)}px) scale(${zoom.toFixed(4)})`, op = vis.toFixed(3);
+  const key = tf + op;
+  if (key !== bgLast) { bgLast = key; els.bgWrap.style.transform = tf; els.bgWrap.style.opacity = op; }
+  return vis;
+}
+
+/* ============================================================
+   GRAVEYARD — line-art headstones, crosses, trees and fence in perspective,
+   drawn to match the patch's edge-detected look
+   ============================================================ */
+const Yard = (() => {
+  const c = els.yard, ctx = c.getContext("2d");
+  let visible = false, block = 1, scale = 1, W = 0, H = 0;
+  let seed = 20261028;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+  const PATHS = [
+    [[0, 0], [6, 9], [13, 22], [9, 35], [-6, 40], [-15, 28], [-10, 44], [0, 58], [0, 66]],
+    [[0, 0], [0, 66]]                                   // the centre aisle up to the door
+  ];
+  const segDist = (px, pz, a, b) => {
+    const vx = b[0] - a[0], vz = b[1] - a[1];
+    const t = clamp01(((px - a[0]) * vx + (pz - a[1]) * vz) / (vx * vx + vz * vz));
+    return Math.hypot(a[0] + vx * t - px, a[1] + vz * t - pz);
+  };
+  const nearPath = (x, z) => {
+    let m = 1e9;
+    for (const P of PATHS) for (let i = 0; i < P.length - 1; i++) m = Math.min(m, segDist(x, z, P[i], P[i + 1]));
+    return m;
+  };
+
+  const objs = [];
+  let tries = 0;
+  while (objs.length < 150 && tries++ < 5000) {
+    const x = -27 + rnd() * 54, z = 3 + rnd() * 57;
+    if (nearPath(x, z) < 2.3) continue;
+    if (objs.some(o => Math.hypot(o.x - x, o.z - z) < 1.7)) continue;
+    const r = rnd(), type = r < 0.58 ? "slab" : r < 0.84 ? "cross" : "obelisk";
+    const w = type === "slab" ? 0.55 + rnd() * 0.4 : type === "cross" ? 0.55 + rnd() * 0.25 : 0.45 + rnd() * 0.25;
+    const h = type === "slab" ? 0.75 + rnd() * 0.6 : type === "cross" ? 1.1 + rnd() * 0.5 : 1.5 + rnd() * 0.8;
+    objs.push({ type, x, z, w, h, lean: (rnd() - 0.5) * 0.26, mark: rnd() });
+  }
+  function makeTree(h) {
+    const segs = [];
+    const br = (x, y, ang, len, w, d) => {
+      const x2 = x + Math.sin(ang) * len, y2 = y + Math.cos(ang) * len;
+      segs.push([x, y, x2, y2, w]);
+      if (d <= 0) return;
+      const n = 2 + (rnd() < 0.4 ? 1 : 0);
+      for (let i = 0; i < n; i++) br(x2, y2, ang + (rnd() - 0.5) * 1.1 + (i - (n - 1) / 2) * 0.62, len * (0.56 + rnd() * 0.18), w * 0.58, d - 1);
+    };
+    br(0, 0, (rnd() - 0.5) * 0.15, h * 0.42, h * 0.07, 4);
+    return segs;
+  }
+  [[-20, 10], [21, 8], [-25, 36], [24, 40], [-15, 55], [16, 56], [28, 22], [-29, 22]].forEach(([x, z]) => {
+    const h = 7 + rnd() * 4;
+    objs.push({ type: "tree", x, z, h, segs: makeTree(h) });
+  });
+  const fenceLines = [[], [], []];
+  for (let x = -30; x <= 30.01; x += 1.6) if (Math.abs(x) > 2.6) fenceLines[0].push([x, 63]);
+  for (let z = 0; z < 63; z += 1.6) { fenceLines[1].push([-31, z]); fenceLines[2].push([31, z]); }
+  fenceLines.forEach(line => {
+    line.forEach(([x, z]) => objs.push({ type: "post", x, z, h: 1.9 }));
+    for (let i = 0; i < line.length - 1; i++) {
+      const a = line[i], b = line[i + 1];
+      if (Math.hypot(a[0] - b[0], a[1] - b[1]) > 2) continue;   // the gate
+      objs.push({ type: "rail", x: (a[0] + b[0]) / 2, z: (a[1] + b[1]) / 2, a, b });
+    }
+  });
+  for (let i = 0; i < 320; i++) objs.push({ type: "tuft", x: -30 + rnd() * 60, z: 1 + rnd() * 62, s: 0.16 + rnd() * 0.2, r: rnd() });
+
+  function size() {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    scale = block > 1 ? 1 / block : dpr;
+    const w = Math.max(1, Math.round(innerWidth * scale)), h = Math.max(1, Math.round(innerHeight * scale));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    W = innerWidth; H = innerHeight;
+  }
+  size(); addEventListener("resize", size);
+
+  const LINE = a => `rgba(238,233,220,${a})`;
+  function drawAll(v, ox, oy, alpha, T) {
+    const f = H * 1.05, hz = H * (0.8 - v.pitch);
+    const cy = Math.cos(v.yaw), sy = Math.sin(v.yaw);
+    const proj = (x, z) => {
+      const dx = x - v.x, dz = z - v.z;
+      return [dx * cy - dz * sy, dx * sy + dz * cy];
+    };
+    const list = [];
+    for (const o of objs) {
+      if (o.type === "rail") {
+        const A = proj(o.a[0], o.a[1]), B = proj(o.b[0], o.b[1]);
+        if (A[1] < 0.35 || B[1] < 0.35) continue;
+        list.push({ o, rz: (A[1] + B[1]) / 2, A, B });
+      } else {
+        const p = proj(o.x, o.z);
+        if (p[1] < 0.35) continue;
+        const sx = W / 2 + p[0] / p[1] * f;
+        if (sx < -W * 0.4 || sx > W * 1.4) continue;
+        list.push({ o, rz: p[1], sx });
+      }
+    }
+    list.sort((a, b) => b.rz - a.rz);
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    for (const it of list) {
+      const o = it.o, rz = it.rz, s = f / rz;
+      const fade = Math.max(0.12, Math.min(1, 1.25 - rz / 55)) * alpha;
+      const gy = hz + v.h / rz * f + oy;
+      const lw = Math.max(0.8, Math.min(3, s * 0.022));
+      ctx.globalAlpha = fade;
+      if (o.type === "rail") {
+        const ax = W / 2 + it.A[0] / it.A[1] * f + ox, bx = W / 2 + it.B[0] / it.B[1] * f + ox;
+        const ay = hz + v.h / it.A[1] * f + oy, by = hz + v.h / it.B[1] * f + oy;
+        const sa = f / it.A[1], sb = f / it.B[1];
+        ctx.strokeStyle = LINE(0.8); ctx.lineWidth = lw * 0.8;
+        ctx.beginPath();
+        ctx.moveTo(ax, ay - 0.55 * sa); ctx.lineTo(bx, by - 0.55 * sb);
+        ctx.moveTo(ax, ay - 1.45 * sa); ctx.lineTo(bx, by - 1.45 * sb);
+        ctx.stroke();
+        continue;
+      }
+      const sx = it.sx + ox;
+      if (o.type === "tuft") {
+        const k = o.s * s;
+        ctx.strokeStyle = LINE(0.45); ctx.lineWidth = Math.max(0.6, lw * 0.6);
+        ctx.beginPath();
+        ctx.moveTo(sx, gy); ctx.lineTo(sx - k * 0.5, gy - k);
+        ctx.moveTo(sx, gy); ctx.lineTo(sx + k * 0.1, gy - k * 1.2);
+        ctx.moveTo(sx, gy); ctx.lineTo(sx + k * 0.55, gy - k * 0.85);
+        ctx.stroke();
+        continue;
+      }
+      ctx.save();
+      ctx.translate(sx, gy);
+      if (o.lean) ctx.rotate(o.lean * 0.5);
+      ctx.fillStyle = "#040404"; ctx.strokeStyle = LINE(0.95); ctx.lineWidth = lw;
+      if (o.type === "tree") {
+        // pale outline first, dark core on top: reads as an edge
+        for (const pass of [0, 1]) {
+          ctx.strokeStyle = pass ? "#040404" : LINE(0.9);
+          for (const [x1, y1, x2, y2, w] of o.segs) {
+            const ww = w * s;
+            if (pass && ww < 1.6) continue;
+            ctx.lineWidth = pass ? ww : Math.max(0.8, ww + lw * 1.6);
+            ctx.beginPath(); ctx.moveTo(x1 * s, -y1 * s); ctx.lineTo(x2 * s, -y2 * s); ctx.stroke();
+          }
+        }
+      } else {
+        const w = o.w * s, h = o.h * s;
+        ctx.beginPath();
+        if (o.type === "slab") {
+          ctx.moveTo(-w / 2, 0); ctx.lineTo(-w / 2, -h + w / 2); ctx.arc(0, -h + w / 2, w / 2, Math.PI, 0); ctx.lineTo(w / 2, 0);
+        } else if (o.type === "cross") {
+          const vb = w * 0.22, t1 = -h * 0.6, t2 = -h * 0.8;
+          ctx.moveTo(-vb / 2, 0); ctx.lineTo(-vb / 2, t1); ctx.lineTo(-w / 2, t1); ctx.lineTo(-w / 2, t2); ctx.lineTo(-vb / 2, t2);
+          ctx.lineTo(-vb / 2, -h); ctx.lineTo(vb / 2, -h); ctx.lineTo(vb / 2, t2); ctx.lineTo(w / 2, t2); ctx.lineTo(w / 2, t1);
+          ctx.lineTo(vb / 2, t1); ctx.lineTo(vb / 2, 0);
+        } else if (o.type === "obelisk") {
+          ctx.moveTo(-w * 0.7, 0); ctx.lineTo(-w * 0.7, -h * 0.08); ctx.lineTo(-w / 2, -h * 0.08); ctx.lineTo(-w * 0.36, -h * 0.86);
+          ctx.lineTo(0, -h); ctx.lineTo(w * 0.36, -h * 0.86); ctx.lineTo(w / 2, -h * 0.08); ctx.lineTo(w * 0.7, -h * 0.08); ctx.lineTo(w * 0.7, 0);
+        } else if (o.type === "post") {
+          const pw = Math.max(1, 0.09 * s), hh = o.h * s;
+          ctx.moveTo(-pw / 2, 0); ctx.lineTo(-pw / 2, -hh); ctx.lineTo(0, -hh - 0.22 * s); ctx.lineTo(pw / 2, -hh); ctx.lineTo(pw / 2, 0);
+        }
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        if (o.type === "slab" && s > 26) {      // carving
+          ctx.globalAlpha = fade * 0.55; ctx.lineWidth = Math.max(0.7, lw * 0.7);
+          ctx.beginPath();
+          if (o.mark < 0.5) { ctx.moveTo(0, -h * 0.74); ctx.lineTo(0, -h * 0.4); ctx.moveTo(-w * 0.15, -h * 0.63); ctx.lineTo(w * 0.15, -h * 0.63); }
+          else { ctx.moveTo(-w * 0.26, -h * 0.55); ctx.lineTo(w * 0.26, -h * 0.55); ctx.moveTo(-w * 0.2, -h * 0.42); ctx.lineTo(w * 0.2, -h * 0.42); }
+          if (o.mark > 0.8) { ctx.moveTo(w * 0.1, -h * 0.9); ctx.lineTo(-w * 0.05, -h * 0.7); ctx.lineTo(w * 0.08, -h * 0.55); ctx.lineTo(-w * 0.02, -h * 0.3); }
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  return {
+    show(v) { visible = v; if (!v) ctx.clearRect(0, 0, c.width, c.height); },
+    setBlock(b) { block = b; size(); },
+    draw(v, split, T) {
+      if (!visible) return;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, c.width, c.height);
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      drawAll(v, 0, 0, 1, T);
+      if (split > 0.01) {                                  // double vision
+        const s = Math.min(1, split);
+        drawAll(v, s * (46 * Math.sin(T * 0.9) + 18), s * 14 * Math.sin(T * 1.3), 0.42 * s, T);
+      }
+      // interlace, like the patch
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillStyle = "rgba(0,0,0,.32)";
+      const off = (T * 37) % 5.36;
+      for (let y = -off; y < H; y += 5.36) ctx.fillRect(0, y, W, 2.6);
+      ctx.globalCompositeOperation = "source-over";
+    }
+  };
+})();
+
+/* ============================================================
+   FOG — WebGL: drifting noise fog low over the ground, with pale contour
+   lines like the patch's edge-detected noise, dithered and interlaced
+   ============================================================ */
+const FogGL = (() => {
+  const c = els.fog;
+  const gl = c.getContext("webgl", { premultipliedAlpha: true, alpha: true, antialias: false });
+  if (!gl) return { target() {}, off() {}, setBlock() {}, draw() {} };
+  const deriv = gl.getExtension("OES_standard_derivatives");
+  const VS = "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}";
+  const FS = (deriv ? "#extension GL_OES_standard_derivatives : enable\n#define HAS_D 1\n" : "") + `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform vec2 uRes; uniform float uTime; uniform vec3 uCam; uniform float uDensity; uniform float uHorizon; uniform float uPix; uniform float uSky;
+float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float noise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3. - 2. * f);
+  return mix(mix(hash(i), hash(i + vec2(1., 0.)), u.x), mix(hash(i + vec2(0., 1.)), hash(i + vec2(1., 1.)), u.x), u.y); }
+float fbm(vec2 p){ float v = 0., a = .5; for (int i = 0; i < 5; i++){ v += a * noise(p); p = p * 2.02 + vec2(13.1, 7.7); a *= .5; } return v; }
+float bayer2(vec2 a){ a = floor(a); return fract(dot(a, vec2(.5, a.y * .75))); }
+float bayer4(vec2 a){ return bayer2(.5 * a) * .25 + bayer2(a); }
+float lineAt(float f, float level, float w){
+#ifdef HAS_D
+  float g = fwidth(f) * 1.4 + .004 * uPix;
+#else
+  float g = .012 + .004 * uPix;
+#endif
+  return 1. - smoothstep(0., g * w, abs(f - level));
+}
+void main(){
+  vec2 cell = floor(gl_FragCoord.xy / uPix);
+  vec2 uv = (cell + .5) * uPix / uRes;
+  float aspect = uRes.x / uRes.y;
+  float yt = 1. - uv.y;                 /* 0 top, 1 bottom */
+  float sx = (uv.x - .5) * aspect;
+  float yaw = uCam.z;
+  /* ground fog */
+  float top = uHorizon - .34;
+  float hm = smoothstep(top, top + .5, yt);
+  vec2 q1 = vec2(sx * 1.25 + yaw * 1.6 + uCam.x * .04 + uTime * .022, yt * 2.6 - uCam.y * .045);
+  vec2 q2 = vec2(sx * 2.4 + yaw * 2.4 + uCam.x * .07 - uTime * .035, yt * 4.4 - uCam.y * .08 + uTime * .01);
+  float w = fbm(q1 * 1.7 + uTime * .01);
+  float f = fbm(q1 + w * .6) * .62 + fbm(q2) * .48;
+  float dens = smoothstep(.36, .82, f) * hm * uDensity;
+  float contour = (lineAt(f, .64, 1.) * .55 + lineAt(f, .52, 1.) * .25) * hm * uDensity;
+  /* when the house is out of sight: outlined noise drifting in the sky, like the patch */
+  float sm = 1. - smoothstep(uHorizon - .12, uHorizon + .02, yt);
+  float d = bayer4(cell);
+  float sn = fbm(vec2(sx * 9. + yaw * 14. + uTime * .22, yt * 9. + uTime * .06));
+  float sky = (lineAt(sn, .63, 1.2) + step(.67, sn) * step(d, .35) * .7) * sm * uSky;
+  float soft = step(d, dens) * .5 + dens * .32;
+  float a = clamp(soft + contour * .9 + sky * .85, 0., 1.);
+  a *= .8 + .2 * step(2.68, mod(gl_FragCoord.y / max(uPix, 1.) + uTime * 18., 5.36));
+  gl_FragColor = vec4(vec3(.94, .92, .87) * a, a);
+}`;
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.warn(gl.getShaderInfoLog(s)); return s; };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { console.warn(gl.getProgramInfoLog(prog)); return { target() {}, off() {}, setBlock() {}, draw() {} }; }
+  gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, "p"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const U = {}; ["uRes", "uTime", "uCam", "uDensity", "uHorizon", "uPix", "uSky"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+  let density = 0, target = 0, sky = 0, block = 1, drawn = false;
+  function size() {
+    const w = Math.max(2, Math.round(innerWidth / 2)), h = Math.max(2, Math.round(innerHeight / 2));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; gl.viewport(0, 0, w, h); }
+  }
+  size(); addEventListener("resize", size);
+  let enabled = true;
+  return {
+    target(v) { target = v; },
+    off() { enabled = false; density = target = sky = 0; },
+    setBlock(b) { block = b; },
+    draw(now, dt, v, bgVis) {
+      density += (target - density) * (1 - Math.exp(-dt * 0.8));
+      const skyT = enabled ? (1 - bgVis) * (density > 0.02 ? 1 : 0) : 0;
+      sky += (skyT - sky) * (1 - Math.exp(-dt * 2));
+      if (density < 0.004 && sky < 0.004) { if (drawn) { gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); drawn = false; } return; }
+      drawn = true;
+      gl.uniform2f(U.uRes, c.width, c.height);
+      gl.uniform1f(U.uTime, (now / 1000) % 1000);
+      gl.uniform3f(U.uCam, v.x, v.z, v.yaw);
+      gl.uniform1f(U.uDensity, density);
+      gl.uniform1f(U.uHorizon, 0.8 - v.pitch);
+      gl.uniform1f(U.uPix, Math.max(1, block / 2));
+      gl.uniform1f(U.uSky, sky);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+  };
+})();
+
+/* ============================================================
+   SKETCHFAB (the inside of the building)
+   ============================================================ */
+const EMBED = {
+  autostart: 1, preload: 1, camera: 0, dnt: 1, scrollwheel: 0, transparent: 0,
+  ui_infos: 0, ui_controls: 0, ui_stop: 0, ui_inspector: 0, ui_settings: 0, ui_vr: 0, ui_ar: 0,
+  ui_help: 0, ui_fullscreen: 0, ui_annotations: 0, ui_hint: 0, ui_watermark: 0, ui_watermark_link: 0,
+  ui_loading: 0, ui_start: 0, ui_animations: 0, ui_theme: "dark"
+};
+function loadViewer(iframe, uid, onProgress) {
+  return new Promise((resolve, reject) => {
+    if (!window.Sketchfab) { reject(new Error("Sketchfab API script did not load")); return; }
+    const client = new window.Sketchfab("1.12.1", iframe);
+    client.init(uid, Object.assign({}, EMBED, {
+      success(api) {
+        api.start();
+        api.addEventListener("viewerready", () => resolve(api));
+        api.addEventListener("modelLoadProgress", e => {
+          const p = typeof e === "number" ? e : (e && e.progress);
+          if (typeof p === "number" && onProgress) onProgress(p);
+        });
+      },
+      error() { reject(new Error("Sketchfab viewer failed to start for " + uid)); }
+    }));
+  });
+}
+function startViscera() {
+  if (visceraP) return;
+  visceraP = loadViewer(els.vViscera, VISCERA_UID, p => { visceraProgress = p; })
+    .then(api => new Promise(resolve => {
+      api.setFov(VISCERA_CAM.fov, () => {
+        api.setCameraLookAt(VISCERA_CAM.p, VISCERA_CAM.t, 0, () => setTimeout(() => resolve(api), 300));
+      });
+    }));
+  visceraP.then(api => { visceraApi = api; }).catch(e => console.warn(e));
+}
+
+/* ============================================================
+   AUDIO — everything is synthesised
+   ============================================================ */
+const Sound = {
+  ctx: null, out: null, noise: null, on: true, beatTimer: null, breathTimer: null, birdTimer: null,
+  drone: null, screechNode: null, room: null,
+  init() {
+    if (this.ctx) { if (this.ctx.resume) this.ctx.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    this.ctx = new AC();
+    this.out = this.ctx.createGain();
+    this.out.gain.value = this.on ? 0.9 : 0;
+    this.out.connect(this.ctx.destination);
+    const len = this.ctx.sampleRate * 2, buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    this.noise = buf;
+  },
+  setOn(v) { this.on = v; if (this.ctx) this.out.gain.setTargetAtTime(v ? 0.9 : 0, this.ctx.currentTime, 0.05); },
+  env(g, t, peak, attack, release) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + attack + release);
+  },
+  noiseSrc() { const s = this.ctx.createBufferSource(); s.buffer = this.noise; s.loop = true; return s; },
+  burst(type, freq, q, peak, attack, release, t) {
+    const c = this.ctx; t = t || c.currentTime;
+    const n = this.noiseSrc(), f = c.createBiquadFilter(), g = c.createGain();
+    f.type = type; f.frequency.value = freq; f.Q.value = q;
+    this.env(g, t, peak, attack, release); n.connect(f).connect(g).connect(this.out);
+    n.start(t, Math.random()); n.stop(t + attack + release + 0.05);
+    return f;
+  },
+  tone(type, f0, f1, peak, attack, release, t) {
+    const c = this.ctx; t = t || c.currentTime;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + attack + release);
+    this.env(g, t, peak, attack, release); o.connect(g).connect(this.out); o.start(t); o.stop(t + attack + release + 0.05);
+  },
+  impact() {
+    if (!this.ctx) return;
+    this.tone("sine", 120, 26, 0.9, 0.01, 1.5);
+    const f = this.burst("lowpass", 2400, 0.7, 0.55, 0.005, 1.3);
+    f.frequency.exponentialRampToValueAtTime(90, this.ctx.currentTime + 1.3);
+  },
+  tinnitus(sec = 8) {
+    if (!this.ctx) return; const c = this.ctx, t = c.currentTime;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = "sine"; o.frequency.setValueAtTime(4700, t); o.frequency.linearRampToValueAtTime(4550, t + sec);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.03, t + 0.25);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + sec);
+    o.connect(g).connect(this.out); o.start(t); o.stop(t + sec + 0.2);
+  },
+  thump(t, gain) { if (this.ctx) this.tone("sine", 68, 38, gain, 0.012, 0.2, t); },
+  heartbeat(on, gap = 760, growth = 1.06) {
+    clearTimeout(this.beatTimer);
+    if (!this.ctx || !on) return;
+    const beat = () => {
+      const t = this.ctx.currentTime + 0.02;
+      this.thump(t, 0.8); this.thump(t + 0.24, 0.55);
+      gap = Math.min(gap * growth, 1500);
+      this.beatTimer = setTimeout(beat, gap);
+    };
+    beat();
+  },
+  startDrone() {
+    if (!this.ctx || this.drone) return; const c = this.ctx, t = c.currentTime;
+    const bus = c.createGain(); bus.gain.setValueAtTime(0.0001, t); bus.gain.exponentialRampToValueAtTime(0.07, t + 5);
+    const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 170; lp.Q.value = 6;
+    const lfo = c.createOscillator(), lfoG = c.createGain(); lfo.frequency.value = 0.07; lfoG.gain.value = 70;
+    lfo.connect(lfoG).connect(lp.frequency); lfo.start(t);
+    [43.65, 44.1, 65.4].forEach((fr, i) => {
+      const o = c.createOscillator(); o.type = "sawtooth"; o.frequency.value = fr; o.detune.value = i * 7;
+      o.connect(lp); o.start(t);
+    });
+    const wind = this.noiseSrc(), bp = c.createBiquadFilter(), wg = c.createGain();
+    bp.type = "bandpass"; bp.frequency.value = 420; bp.Q.value = 0.8; wg.gain.value = 0.18;
+    const wl = c.createOscillator(), wlg = c.createGain(); wl.frequency.value = 0.11; wlg.gain.value = 0.14;
+    wl.connect(wlg).connect(wg.gain); wl.start(t);
+    wind.connect(bp).connect(wg).connect(bus); wind.start(t);
+    lp.connect(bus); bus.connect(this.out);
+    this.drone = bus;
+  },
+  droneTo(v, sec) { if (this.drone) this.drone.gain.setTargetAtTime(Math.max(v, 0.0001), this.ctx.currentTime, sec / 3); },
+  tick() { if (this.ctx) this.burst("bandpass", rand(2600, 3500), 3, 0.16, 0.002, 0.04); },
+  thud() { if (this.ctx) this.thump(this.ctx.currentTime + 0.01, 0.7); },
+  step(fast) {
+    if (!this.ctx) return;
+    this.burst("bandpass", rand(450, 750), 0.9, fast ? 0.34 : 0.24, 0.006, fast ? 0.09 : 0.12);
+    this.tone("sine", 95, 45, fast ? 0.2 : 0.13, 0.006, 0.1);
+  },
+  breath(on, fast = true) {
+    clearTimeout(this.breathTimer);
+    if (!this.ctx || !on) return;
+    let inhale = true;
+    const go = () => {
+      const t = this.ctx.currentTime, dur = fast ? (inhale ? 0.42 : 0.5) : (inhale ? 0.9 : 1.1);
+      const f = this.burst("bandpass", inhale ? 900 : 620, 0.7, inhale ? 0.1 : 0.13, dur * 0.4, dur * 0.6, t);
+      f.frequency.linearRampToValueAtTime(inhale ? 1200 : 480, t + dur);
+      inhale = !inhale;
+      this.breathTimer = setTimeout(go, dur * 1000 + (fast ? 60 : 300));
+    };
+    go();
+  },
+  whoosh() {
+    if (!this.ctx) return; const t = this.ctx.currentTime;
+    const f = this.burst("bandpass", 2600, 1.4, 0.55, 0.16, 0.18, t);
+    f.frequency.exponentialRampToValueAtTime(280, t + 0.32);
+  },
+  crack() {
+    if (!this.ctx) return;
+    this.burst("highpass", 1400, 0.8, 0.8, 0.002, 0.07);
+    this.tone("sine", 150, 32, 1.0, 0.005, 0.9);
+    const f = this.burst("lowpass", 900, 0.8, 0.6, 0.004, 0.6);
+    f.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.6);
+  },
+  stinger() {
+    if (!this.ctx) return; const c = this.ctx, t = c.currentTime;
+    [55, 58.3, 82.4, 116.5].forEach(fr => {
+      const o = c.createOscillator(), g = c.createGain(); o.type = "sawtooth"; o.frequency.value = fr;
+      const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.setValueAtTime(200, t); lp.frequency.exponentialRampToValueAtTime(1400, t + 1.6);
+      this.env(g, t, 0.09, 0.4, 2.2); o.connect(lp).connect(g).connect(this.out); o.start(t); o.stop(t + 2.8);
+    });
+  },
+  screech() {
+    if (!this.ctx) return; const c = this.ctx, t = c.currentTime;
+    const bus = c.createGain(); bus.gain.setValueAtTime(0.0001, t); bus.gain.exponentialRampToValueAtTime(0.16, t + 0.08);
+    const hp = c.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 500;
+    [1180, 1243, 2360].forEach((fr, i) => {
+      const o = c.createOscillator(); o.type = i === 2 ? "sine" : "sawtooth"; o.frequency.value = fr;
+      const l = c.createOscillator(), lg = c.createGain(); l.frequency.value = 6 + i * 1.7; lg.gain.value = 50;
+      l.connect(lg).connect(o.frequency); l.start(t); o.connect(hp); o.start(t);
+    });
+    const n = this.noiseSrc(), ng = c.createGain(); ng.gain.value = 0.25; n.connect(ng).connect(hp); n.start(t);
+    hp.connect(bus); bus.connect(this.out);
+    this.screechNode = bus;
+  },
+  cut() {
+    if (!this.ctx) return; const t = this.ctx.currentTime;
+    if (this.screechNode) { this.screechNode.gain.cancelScheduledValues(t); this.screechNode.gain.setValueAtTime(0.0001, t); this.screechNode = null; }
+    this.heartbeat(false); this.breath(false);
+    if (this.drone) { this.drone.gain.cancelScheduledValues(t); this.drone.gain.setValueAtTime(0.0001, t); }
+    this.tone("sine", 70, 24, 1.0, 0.004, 1.8);
+    this.burst("lowpass", 300, 0.7, 0.7, 0.003, 1.2);
+  },
+  creak() {
+    if (!this.ctx) return; const c = this.ctx, t = c.currentTime;
+    const o = c.createOscillator(), bp = c.createBiquadFilter(), g = c.createGain();
+    o.type = "sawtooth"; o.frequency.setValueAtTime(150, t); o.frequency.linearRampToValueAtTime(95, t + 2.2);
+    const wob = c.createOscillator(), wg = c.createGain(); wob.frequency.value = 13; wg.gain.value = 22;
+    wob.connect(wg).connect(o.frequency); wob.start(t); wob.stop(t + 2.4);
+    bp.type = "bandpass"; bp.frequency.value = 850; bp.Q.value = 9;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.25);
+    g.gain.setValueAtTime(0.35, t + 1.6); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.3);
+    o.connect(bp).connect(g).connect(this.out); o.start(t); o.stop(t + 2.4);
+  },
+  morning() {
+    if (!this.ctx) return; const c = this.ctx, t = c.currentTime;
+    const n = this.noiseSrc(), lp = c.createBiquadFilter(), g = c.createGain();
+    lp.type = "lowpass"; lp.frequency.value = 380; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + 4);
+    n.connect(lp).connect(g).connect(this.out); n.start(t); this.room = g;
+    const chirp = () => {
+      const s = this.ctx.currentTime, k = 1 + (Math.random() * 3 | 0), base = rand(2800, 4200);
+      for (let i = 0; i < k; i++) {
+        const o = this.ctx.createOscillator(), gg = this.ctx.createGain(), at = s + i * rand(0.09, 0.14);
+        o.type = "sine"; o.frequency.setValueAtTime(base, at); o.frequency.exponentialRampToValueAtTime(base * rand(1.15, 1.45), at + 0.07);
+        this.env(gg, at, 0.05, 0.01, 0.07); o.connect(gg).connect(this.out); o.start(at); o.stop(at + 0.1);
+      }
+      this.birdTimer = setTimeout(chirp, rand(500, 2600));
+    };
+    this.birdTimer = setTimeout(chirp, 1200);
+  }
+};
+
+els.sound.addEventListener("click", () => {
+  Sound.init();
+  Sound.setOn(!Sound.on);
+  els.sound.setAttribute("aria-pressed", String(Sound.on));
+  els.sound.querySelector("span").textContent = Sound.on ? "Sound on" : "Sound off";
+  els.sound.querySelectorAll(".w").forEach(p => p.style.opacity = Sound.on ? 1 : 0);
+});
+
+/* ============================================================
+   OLD-FILM LAYER
+   ============================================================ */
+(() => {
+  const g = els.grain, gx = g.getContext("2d");
+  const d = els.dust, dx = d.getContext("2d");
+  const frames = [];
+  let dpr = 1, last = 0, lastDust = 0;
+  const W = 320, H = 180; g.width = W; g.height = H;
+  for (let f = 0; f < 6; f++) {
+    const img = gx.createImageData(W, H), p = img.data;
+    for (let i = 0; i < p.length; i += 4) { const v = Math.random() * 255 | 0; p[i] = p[i + 1] = p[i + 2] = v; p[i + 3] = 255; }
+    frames.push(img);
+  }
+  function resize() { dpr = Math.min(devicePixelRatio || 1, 2); d.width = innerWidth * dpr; d.height = innerHeight * dpr; }
+  resize(); addEventListener("resize", resize);
+  function drawDust() {
+    dx.clearRect(0, 0, d.width, d.height);
+    if (Math.random() < 0.35) {
+      dx.fillStyle = `rgba(240,236,226,${rand(0.25, 0.6)})`;
+      dx.fillRect(Math.random() * d.width, 0, Math.max(1, dpr * (Math.random() < 0.8 ? 1 : 2)), d.height);
+    }
+    const n = Math.random() * 6 | 0;
+    for (let i = 0; i < n; i++) {
+      dx.fillStyle = Math.random() < 0.5 ? "rgba(240,236,226,.6)" : "rgba(0,0,0,.75)";
+      dx.beginPath();
+      dx.ellipse(Math.random() * d.width, Math.random() * d.height, (1 + Math.random() * 3) * dpr, (0.6 + Math.random() * 2) * dpr, Math.random() * 3, 0, Math.PI * 2);
+      dx.fill();
+    }
+  }
+  function frame(now) {
+    const real = document.body.classList.contains("real");
+    if (now - last > 42) {
+      last = now;
+      gx.putImageData(frames[Math.random() * frames.length | 0], 0, 0);
+      els.flicker.style.opacity = REDUCED || real ? 0 : (Math.random() * 0.07 + (Math.random() < 0.03 ? 0.12 : 0)).toFixed(3);
+    }
+    if (now - lastDust > 83) { lastDust = now; drawDust(); }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+
+/* ============================================================
+   FX — one loop: virtual camera, background, graveyard, fog,
+   sway, walking bob, hits, trembling and blur
+   ============================================================ */
+const FX = {
+  sway: 0, swayT: 0, bob: 0, bobT: 0, stepDur: 0.55, phase: 0,
+  trauma: 0, page: 0, pageT: 0, tilt: 0, tiltT: 0, drop: 0, dropT: 0, scale: 1.04, scaleT: 1.04,
+  blur: 0, blurT: 0, blurRate: 2.5, bright: 1, brightT: 1, split: 0, splitT: 0, hook: null,
+  kick(v) { this.trauma = Math.min(1.25, this.trauma + v); },
+  jump(o) { for (const k in o) { this[k] = o[k]; if ((k + "T") in this) this[k + "T"] = o[k]; } }
+};
+const nz = (t, a, b, c) => Math.sin(t * a) * 0.5 + Math.sin(t * b + 1.3) * 0.3 + Math.sin(t * c + 2.1) * 0.2;
+let fxLast = performance.now(), stageFilter = "";
+function fxFrame(now) {
+  const dt = Math.min(0.05, (now - fxLast) / 1000); fxLast = now;
+  const T = now / 1000, m = REDUCED ? 0.2 : 1;
+  const ease = (cur, tgt, rate) => cur + (tgt - cur) * (1 - Math.exp(-dt * rate));
+  if (FX.hook) FX.hook(now);
+  View.step(now);
+  if (View.drift) {                       // the title: a slow, uneasy drift in front of the house
+    View.yaw = 0.07 * Math.sin(T * 0.11); View.z = 2 + 2.5 * Math.sin(T * 0.07); View.x = 0.8 * Math.sin(T * 0.05);
+  }
+  FX.sway = ease(FX.sway, FX.swayT, 1.2); FX.bob = ease(FX.bob, FX.bobT, 3); FX.page = ease(FX.page, FX.pageT, 5);
+  FX.tilt = ease(FX.tilt, FX.tiltT, 3); FX.drop = ease(FX.drop, FX.dropT, 3); FX.scale = ease(FX.scale, FX.scaleT, 2);
+  FX.blur = ease(FX.blur, FX.blurT, FX.blurRate); FX.bright = ease(FX.bright, FX.brightT, 2.5); FX.split = ease(FX.split, FX.splitT, 1.5);
+  FX.trauma = Math.max(0, FX.trauma - dt * 0.55);
+
+  // stage: drunk sway + walking bob + hit shake + tilt
+  const s = FX.sway * m;
+  let x = s * (30 * Math.sin(T * 1.25) + 10 * Math.sin(T * 3.4 + 0.7));
+  let y = s * (18 * Math.sin(T * 1.05 + 1.2) + 7 * Math.sin(T * 4.1));
+  let r = s * (2.4 * Math.sin(T * 0.85 + 0.4) + 0.7 * Math.sin(T * 2.7));
+  const prev = FX.phase; FX.phase += dt / FX.stepDur;
+  if (FX.bob > 0.35 && Math.floor(FX.phase) !== Math.floor(prev)) Sound.step(FX.stepDur < 0.42);
+  const b = FX.bob * m, sp = Math.sin(Math.PI * FX.phase);
+  y += -b * 8 * Math.abs(sp); x += b * 5 * sp; r += b * 0.5 * sp;
+  const tr = FX.trauma * FX.trauma * m;
+  x += tr * 60 * nz(T * 9, 3.1, 5.7, 9.3); y += tr * 45 * nz(T * 9 + 5, 2.7, 6.1, 8.9); r += tr * 7 * nz(T * 9 + 9, 2.3, 4.9, 7.7);
+  r += FX.tilt; y += FX.drop;
+  els.stage.style.transform = `translate(${x.toFixed(2)}px,${y.toFixed(2)}px) rotate(${r.toFixed(3)}deg) scale(${FX.scale.toFixed(4)})`;
+
+  // the whole page trembling (crouched, holding your head)
+  const p = FX.page * m;
+  if (p > 0.002) {
+    els.world.style.transform = `translate(${(p * 26 * nz(T * 14, 3.3, 7.1, 11.7)).toFixed(2)}px,${(p * 20 * nz(T * 14 + 3, 2.9, 6.6, 12.4)).toFixed(2)}px) rotate(${(p * 2.4 * nz(T * 14 + 7, 3.7, 5.3, 9.9)).toFixed(3)}deg)`;
+  } else if (els.world.style.transform) els.world.style.transform = "";
+
+  // blur / brightness of what you see
+  const filt = (FX.blur > 0.05 || Math.abs(FX.bright - 1) > 0.01) ? `blur(${FX.blur.toFixed(2)}px) brightness(${FX.bright.toFixed(3)})` : "none";
+  if (filt !== stageFilter) { stageFilter = filt; els.stage.style.filter = filt; }
+
+  const bgVis = applyBackground();
+  Yard.draw(View, FX.split, T);
+  FogGL.draw(now, dt, View, bgVis);
+  requestAnimationFrame(fxFrame);
+}
+requestAnimationFrame(fxFrame);
+
+/* ============================================================
+   EYELIDS, BLACK, FLASH, SHADOW, AXE
+   ============================================================ */
+let lidV = 0;   // 0 open … 1 shut
+const lidY = (side, v) => `translateY(${side * (110 - v * 98)}%)`;
+function lidsAnim(frames, ms, easing = "ease-in-out") {
+  const kf = side => frames.map(([o, v]) => ({ offset: o, transform: lidY(side, v) }));
+  els.lidTop.getAnimations().forEach(a => a.cancel()); els.lidBot.getAnimations().forEach(a => a.cancel());
+  els.lidTop.animate(kf(-1), { duration: ms, easing, fill: "forwards" });
+  const a = els.lidBot.animate(kf(1), { duration: ms, easing, fill: "forwards" });
+  lidV = frames[frames.length - 1][1];
+  return a.finished.catch(() => {});
+}
+const lidsTo = (v, ms, easing) => lidsAnim([[0, lidV], [1, v]], Math.max(ms, 1), easing);
+
+let blackV = 0;
+function blackTo(v, ms) {
+  els.black.getAnimations().forEach(a => a.cancel());
+  const a = els.black.animate([{ opacity: blackV }, { opacity: v }], { duration: Math.max(ms, 1), easing: "ease-in-out", fill: "forwards" });
+  blackV = v;
+  return a.finished.catch(() => {});
+}
+function flashTo(v, ms, easing = "ease-out") {
+  const from = getComputedStyle(els.flash).opacity;
+  els.flash.getAnimations().forEach(a => a.cancel());
+  return els.flash.animate([{ opacity: from }, { opacity: v }], { duration: Math.max(ms, 1), easing, fill: "forwards" }).finished.catch(() => {});
+}
+function pulseFlash(peak, inMs, outMs) {
+  els.flash.getAnimations().forEach(a => a.cancel());
+  return els.flash.animate([{ opacity: 0 }, { opacity: peak, offset: inMs / (inMs + outMs) }, { opacity: 0 }],
+    { duration: inMs + outMs, easing: "ease-out", fill: "forwards" }).finished.catch(() => {});
+}
+function shade(opts) {
+  const { opacity = 0.95, left = "50%", scale = 1, ms = 250 } = opts || {};
+  els.shade.getAnimations().forEach(a => a.cancel());
+  els.shade.style.left = left;
+  return els.shade.animate([{ opacity: getComputedStyle(els.shade).opacity, transform: `translateX(-50%) scale(${scale})` },
+    { opacity, transform: `translateX(-50%) scale(${scale})` }], { duration: ms, fill: "forwards" }).finished.catch(() => {});
+}
+function shadeLoom(fromScale, toScale, ms) {
+  els.shade.getAnimations().forEach(a => a.cancel());
+  els.shade.style.left = "50%";
+  return els.shade.animate([
+    { opacity: 0, transform: `translateX(-50%) scale(${fromScale})` },
+    { opacity: 0.95, transform: `translateX(-50%) scale(${fromScale})`, offset: 0.08 },
+    { opacity: 0.6, transform: `translateX(-50%) scale(${fromScale * 1.02})`, offset: 0.12 },
+    { opacity: 0.97, transform: `translateX(-50%) scale(${(fromScale + toScale) / 2})`, offset: 0.5 },
+    { opacity: 0.97, transform: `translateX(-50%) scale(${toScale})` }
+  ], { duration: ms, easing: "ease-in", fill: "forwards" }).finished.catch(() => {});
+}
+function swingAxe() {
+  return els.axe.animate([
+    { opacity: 0, transform: "translate(34vw,-48vh) rotate(-80deg)" },
+    { opacity: 1, transform: "translate(12vw,-14vh) rotate(-30deg)", offset: 0.35 },
+    { opacity: 1, transform: "translate(-12vw,10vh) rotate(25deg)", offset: 0.75 },
+    { opacity: 0, transform: "translate(-30vw,34vh) rotate(62deg)" }
+  ], { duration: 260, easing: "cubic-bezier(.5,0,.9,.6)", fill: "forwards" }).finished.catch(() => {});
+}
+
+/* ============================================================
+   LOADER — black, with faint attempts to open your eyes
+   ============================================================ */
+const Loader = (() => {
+  let on = false, timer = null, textFn = null, textTimer = null;
+  function attempt() {
+    if (!on) return;
+    const peak = rand(0.12, 0.38), open = rand(0.1, 0.42), ms = rand(650, 1300);
+    els.slit.animate([
+      { opacity: 0, transform: "scaleY(.02)" },
+      { opacity: peak, transform: `scaleY(${open})`, offset: 0.42 },
+      { opacity: peak * 0.75, transform: `scaleY(${open * 0.8})`, offset: 0.6 },
+      { opacity: 0, transform: "scaleY(.02)" }
+    ], { duration: ms, easing: "ease-in-out" });
+    if (Math.random() < 0.45) els.haze.animate([{ opacity: 0 }, { opacity: rand(0.03, 0.08), offset: 0.4 }, { opacity: 0 }], { duration: ms * 0.9 });
+    const flutter = Math.random() < 0.3;
+    timer = setTimeout(attempt, flutter ? ms + rand(80, 200) : ms + rand(700, 2100));
+  }
+  return {
+    show(fn) {
+      textFn = fn; on = true;
+      els.loader.hidden = false; els.loader.classList.remove("gone");
+      els.loadText.classList.remove("err");
+      clearTimeout(timer); clearInterval(textTimer);
+      const upd = () => { if (textFn) els.loadText.textContent = textFn(); };
+      upd(); textTimer = setInterval(upd, 300);
+      timer = setTimeout(attempt, 400);
+    },
+    hide() { on = false; clearTimeout(timer); clearInterval(textTimer); els.loader.classList.add("gone"); }
+  };
+})();
+
+/* ============================================================
+   TEXT AND CHOICES
+   ============================================================ */
+const TYPE = {   // [ms per letter, random extra, pause on …, jitter in em]
+  q:       [95, 70, 900, 0.08],
+  shout:   [34, 26, 380, 0.16],
+  thought: [62, 40, 700, 0],
+  real:    [55, 30, 600, 0]
+};
+async function say(text, style = "q") {
+  els.dialog.hidden = false;
+  els.dialog.classList.remove("dim");
+  els.dialog.classList.toggle("center", style === "voice" || style === "thought");
+  els.dialog.classList.toggle("light", style === "real");
+  els.line.className = style;
+  els.line.textContent = "";
+  if (style === "voice") {
+    els.line.textContent = text;
+    els.line.animate([{ opacity: 0, transform: "scale(1.18)", filter: "blur(10px)" }, { opacity: 1, transform: "none", filter: "blur(0)" }],
+      { duration: 160, easing: "ease-out" });
+    return;
+  }
+  const [base, extra, pause, jit] = TYPE[style];
+  for (const ch of text) {
+    const sp = document.createElement("span");
+    sp.className = "ch";
+    sp.textContent = ch;
+    if (jit) {
+      sp.style.setProperty("--jx", ((Math.random() - 0.5) * jit).toFixed(3) + "em");
+      sp.style.setProperty("--jy", ((Math.random() - 0.5) * jit).toFixed(3) + "em");
+      sp.style.setProperty("--jr", ((Math.random() - 0.5) * jit * 38).toFixed(2) + "deg");
+      sp.style.animationDelay = (-Math.random() * 0.16).toFixed(3) + "s";
+    }
+    els.line.appendChild(sp);
+    if (ch !== " " && style !== "real") Sound.tick();
+    await sleep(ch === "…" ? pause : ch === " " ? base * 1.3 : base + Math.random() * extra);
+  }
+}
+async function clearLine(fade = true) {
+  if (fade && els.line.textContent) { els.line.classList.add("out"); await sleep(800); }
+  els.line.textContent = ""; els.line.className = "";
+}
+function choose(list) {
+  return new Promise(resolve => {
+    els.dialog.hidden = false;
+    els.dialog.classList.remove("dim", "center", "light");
+    els.choices.innerHTML = "";
+    list.forEach(([key, label], i) => {
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "choice"; btn.textContent = label;
+      btn.style.animationDelay = (i * 0.25) + "s";
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        els.choices.querySelectorAll("button").forEach(x => x.disabled = true);
+        Sound.thud();
+        els.choices.innerHTML = "";
+        resolve(key);
+      });
+      els.choices.appendChild(btn);
+      requestAnimationFrame(() => btn.classList.add("show"));
+    });
+  });
+}
+function showEnd(kind) {
+  els.dialog.hidden = true;
+  const html = {
+    good: `<h2>Good End</h2><p>You're home.</p><button id="restart" type="button">Start over</button>`,
+    tbc:  `<h2>To be continued&hellip;</h2><button id="restart" type="button">Start over</button>`,
+    fail: `<h2>The building wouldn't open. Check your internet connection, then start over.</h2><button id="restart" type="button">Start over</button>`
+  }[kind];
+  els.end.className = kind;
+  els.end.innerHTML = html;
+  els.end.hidden = false;
+  els.end.querySelector("#restart").addEventListener("click", () => location.reload());
+  requestAnimationFrame(() => requestAnimationFrame(() => els.end.classList.add("show")));
+}
+
+/* ============================================================
+   TITLE
+   ============================================================ */
+function showTitle() {
+  els.wake.innerHTML = "";
+  [..."Open your eyes"].forEach((ch, i) => {
+    const s = document.createElement("span");
+    s.className = "ch"; s.textContent = ch === " " ? " " : ch; s.setAttribute("aria-hidden", "true");
+    s.style.animationDelay = (0.25 + i * 0.07 + Math.random() * 0.1).toFixed(2) + "s";
+    els.wake.appendChild(s);
+  });
+  els.title.hidden = false;
+  View.drift = true;
+  FogGL.target(0.6);
+  Loader.hide();
+  requestAnimationFrame(() => { els.wake.classList.add("in"); els.title.classList.add("ready"); });
+  (function falter() {   // now and then the glow falters like an old bulb
+    if (els.title.hidden) return;
+    setTimeout(() => {
+      if (els.title.hidden || REDUCED) return;
+      els.wake.classList.add("dip");
+      setTimeout(() => {
+        els.wake.classList.remove("dip");
+        if (Math.random() < 0.5) setTimeout(() => { els.wake.classList.add("dip"); setTimeout(() => els.wake.classList.remove("dip"), 60); }, 90);
+        falter();
+      }, 70);
+    }, rand(2500, 6500));
+  })();
+}
+
+/* ============================================================
+   SCENES
+   ============================================================ */
+async function wake() {
+  Sound.init(); Sound.impact(); Sound.tinnitus();
+  els.wake.classList.add("leaving"); els.title.classList.add("gone"); els.wake.disabled = true;
+  await flashTo(1, 140, "ease-in");
+
+  // behind the white: you are lying among the graves, facing the house
+  els.title.hidden = true;
+  View.drift = false;
+  await View.to(WAKE_SPOT, 0);
+  Yard.show(true);
+  FogGL.target(0.6);
+  Sound.heartbeat(true);
+
+  const BLOCKS = [40, 26, 16, 10, 6, 3, 1];
+  setMosaic(BLOCKS[0]);
+  FX.blurRate = 2.5;
+  const start = performance.now();
+  FX.hook = now => {
+    const t = clamp01((now - start) / WAKE_MS);
+    FX.sway = FX.swayT = 0.06 + 0.94 * (1 - smooth(0, 1, t));
+    FX.split = FX.splitT = 1 - smooth(0.05, 0.95, t);
+    FX.blur = FX.blurT = 4 * (1 - smooth(0.55, 1, t));
+    FX.bright = FX.brightT = 1 + 0.55 * (1 - smooth(0, 0.45, t));
+    FX.scale = FX.scaleT = 1.12 - 0.08 * smooth(0, 1, t);
+    setMosaic(BLOCKS[Math.min(BLOCKS.length - 1, Math.floor(Math.pow(smooth(0, 0.84, t), 1.5) * BLOCKS.length))]);
+  };
+  lidsAnim([[0, 0], [0.18, 0], [0.26, 0.4], [0.33, 0.07], [0.48, 0.11], [0.55, 0.62], [0.62, 0.15], [0.8, 0.04], [0.86, 0.33], [0.92, 0], [1, 0]], WAKE_MS);
+  flashTo(0, 2600, "cubic-bezier(.3,.1,.3,1)");
+  setTimeout(() => Sound.startDrone(), 1800);
+  setTimeout(() => Sound.heartbeat(false), WAKE_MS * 0.85);
+  await sleep(WAKE_MS);
+  FX.hook = null;
+  setMosaic(1);
+  startViscera();   // the building's interior loads quietly while you look around
+  await sleep(500);
+}
+
+async function lookAround() {
+  els.dialog.classList.add("dim");
+  await sleep(900);
+  await clearLine(false);
+  await View.to({ yaw: 0.95 }, 2.8); await sleep(700);
+  await View.to({ yaw: -0.95 }, 4.4); await sleep(700);
+  await View.to({ yaw: 0 }, 2.6);
+}
+
+async function walkAround() {
+  els.dialog.classList.add("dim");
+  FogGL.target(0.95);
+  Sound.droneTo(0.09, 3);
+  await sleep(700);
+  FX.stepDur = 0.56; FX.bobT = 1; FX.swayT = 0.05;
+  for (let i = 0; i < WALK.length; i++) {
+    const [x, z, yaw, sec, tag] = WALK[i];
+    if (tag === "glimpse") setTimeout(glimpse, sec * 450);
+    await View.to({ x, z, yaw }, sec, i === 0 ? "in" : "linear");
+  }
+  // hurry back to the entrance
+  FX.stepDur = 0.33; Sound.breath(true); Sound.heartbeat(true, 640, 1);
+  for (let i = 0; i < RUSH.length; i++) {
+    const [x, z, yaw, sec] = RUSH[i];
+    await View.to({ x, z, yaw }, sec, i === RUSH.length - 1 ? "out" : "linear");
+  }
+  FX.bobT = 0;
+}
+async function glimpse() {   // something crosses the fog at the edge of your sight
+  shade({ opacity: 0.6, left: "82%", scale: 0.55, ms: 200 });
+  if (Sound.ctx) Sound.thump(Sound.ctx.currentTime + 0.02, 0.5);
+  await sleep(650);
+  shade({ opacity: 0, left: "82%", scale: 0.55, ms: 300 });
+}
+
+async function axeHit() {
+  Sound.breath(false);
+  await sleep(1500);
+  Sound.whoosh(); swingAxe();
+  await sleep(230);
+  // impact
+  Sound.crack(); Sound.tinnitus(9); Sound.heartbeat(false);
+  blackTo(1, 0); setTimeout(() => blackTo(0, 120), 110);
+  FX.kick(1.2); FX.page = 0.6;
+  FX.jump({ split: 1 }); FX.splitT = 0.4;
+  FX.blurT = 3.2; FX.brightT = 0.85; FX.swayT = 1.05; FX.tiltT = -7; FX.dropT = 40;
+  View.to({ h: 1.0, pitch: 0.12, yaw: 0.18 }, 0.45, "out");
+  lidsAnim([[0, 0], [0.06, 1], [0.16, 0.15], [0.4, 0.22], [0.47, 1], [0.6, 0.3], [0.76, 0.35], [0.83, 1], [0.95, 0.3], [1, 0.28]], 3800);
+  await sleep(1900);
+  View.to({ h: 1.45, pitch: 0.04, yaw: 0.04 }, 1.8);   // trying to stay on your feet
+  FX.tiltT = -2.5; FX.dropT = 14;
+  await sleep(2200);
+  FX.swayT = 0.45; FX.blurT = 1.2; FX.splitT = 0.22;
+  Sound.breath(true, false);
+}
+
+async function counterattack() {
+  Sound.breath(false);
+  FX.splitT = 0; FX.blurT = 0.4; FX.swayT = 0.25; FX.tiltT = 0; FX.dropT = 0;
+  lidsTo(0, 350);
+  Sound.whoosh();
+  await View.to({ yaw: Math.PI, h: 1.6, pitch: 0 }, 0.9, "outCubic");   // turn round
+  FogGL.target(1);
+  shadeLoom(1, 1.16, 1900);
+  Sound.stinger(); Sound.heartbeat(true, 470, 1);
+  await sleep(1900);
+  // the pain
+  Sound.screech();
+  pulseFlash(0.8, 50, 260);
+  shade({ opacity: 0, ms: 60 });
+  FX.kick(1); FX.pageT = 0.9; FX.blurT = 2.4;
+  setTimeout(() => pulseFlash(0.6, 50, 260), 420);
+  setTimeout(() => pulseFlash(0.45, 50, 300), 860);
+  await sleep(450);
+  View.to({ h: 0.55, pitch: 0.34 }, 0.9, "in");     // you crouch, holding your head
+  FX.tiltT = -5; lidsTo(0.32, 600);
+  await sleep(900);
+  await say("Fuck….What the fuck is this world.", "shout");
+  FX.kick(0.5);
+  await sleep(1900);
+  await say("What the fuck is that fucking thing!!!", "shout");
+  FX.kick(0.6);
+  await sleep(1800);
+  // cut to black
+  blackTo(1, 0); Sound.cut();
+  FX.jump({ page: 0, tilt: 0, blur: 0 }); FX.trauma = 0; FX.swayT = 0; FX.sway = 0;
+  lidsTo(0, 1);
+  await clearLine(false);
+  await sleep(260);
+  pulseFlash(0.35, 30, 220);
+  await say("You should know what the fucking happen.", "voice");
+  await sleep(3600);
+  await clearLine(true);
+  await sleep(500);
+  await say("Yes I should know what the fuck is going on.", "thought");
+  await sleep(2600);
+  await clearLine(true);
+  // back at the door
+  await View.to(DOOR, 0);
+  FX.jump({ drop: 0 }); FX.swayT = 0.06; FX.blurT = 0;
+  FogGL.target(0.55); Sound.droneTo(0.07, 2);
+  await sleep(600);
+  await blackTo(0, 2200);
+}
+
+async function enterBuilding(fromFoot) {
+  els.dialog.classList.add("dim");
+  await sleep(900);
+  await clearLine(false);
+  if (fromFoot) {   // walk up the centre aisle to the door
+    FX.stepDur = 0.46; FX.bobT = 1; FogGL.target(0.8);
+    await View.to(DOOR, 8.5, "inOut");
+    FX.bobT = 0;
+  }
+  Sound.creak(); Sound.breath(false); Sound.heartbeat(false);
+  View.to({ z: 71, zoom: 1.3 }, 1.8, "in");
+  await blackTo(1, 1600);
+  FogGL.off();
+  Yard.show(false);
+  View.bgFade = 0;
+  startViscera();
+  if (!visceraApi) {
+    Loader.show(() => "Loading " + Math.round(visceraProgress * 100) + "%");
+    try { await withTimeout(visceraP, 120000); } catch (e) { console.warn(e); }
+    Loader.hide();
+  }
+  if (!visceraApi) { showEnd("fail"); return; }
+  els.vHouse.src = "about:blank";   // the house is behind you now; free its graphics memory
+  els.vViscera.style.opacity = "1";
+  FX.jump({ blur: 10, bright: 1.35, sway: 0.5 }); FX.swayT = 0.1; FX.blurRate = 0.55;
+  lidsTo(1, 1);
+  await sleep(200);
+  await blackTo(0, 400);
+  Sound.heartbeat(true, 820, 1.03);
+  FX.blurT = 0; FX.brightT = 1;
+  await lidsAnim([[0, 1], [0.3, 0.5], [0.42, 0.85], [0.65, 0.18], [0.76, 0.3], [1, 0]], 5200);
+  await sleep(1600);
+  Sound.heartbeat(false);
+  FX.blurRate = 2.5;
+  showEnd("tbc");
+}
+
+async function goodEnd() {
+  els.dialog.classList.add("dim");
+  Sound.breath(false); Sound.heartbeat(true, 950, 1.08); Sound.droneTo(0.0001, 4);
+  FX.swayT = 0.15; FX.splitT = 0; FX.blurT = 4; FX.blurRate = 0.8;
+  FogGL.target(0.2);
+  await lidsTo(1, 3800, "ease-in");
+  await sleep(1400);
+  Sound.heartbeat(false);
+  await sleep(1600);
+  // under closed eyes: the real world
+  View.bgFade = 0; Yard.show(false); FogGL.off();
+  els.vHouse.src = "about:blank"; els.vViscera.style.opacity = "0";
+  FX.swayT = 0; FX.blurT = 0; FX.blurRate = 2.5;
+  els.real.hidden = false;
+  document.body.classList.add("real");
+  Sound.morning();
+  await sleep(400);
+  els.real.classList.add("focus");
+  await lidsAnim([[0, 1], [0.32, 0.55], [0.44, 0.8], [0.7, 0.2], [0.8, 0.32], [1, 0]], 4400);
+  await sleep(600);
+  await say("You're back in the real world.", "real");
+  await sleep(2200);
+  showEnd("good");
+}
+
+/* ============================================================
+   STORY
+   ============================================================ */
+async function story() {
+  await wake();
+  await say("where …am I??", "q");
+  await sleep(1100);
+  let c = await choose([["look", "look around"], ["enter", "go in the building"]]);
+  if (c === "enter") return enterBuilding(true);
+
+  await lookAround();
+  await choose([["walk", "walk around"]]);
+  await walkAround();
+  await axeHit();
+
+  c = await choose([["fight", "Counterattack"], ["tired", "so tired …"]]);
+  if (c === "tired") return goodEnd();
+
+  els.dialog.classList.remove("dim");
+  await counterattack();
+  await choose([["enter", "Go in this building"]]);
+  return enterBuilding(false);
+}
+
+let started = false;
+els.wake.addEventListener("click", () => {
+  if (started) return;
+  started = true;
+  story().catch(e => console.error(e));
+});
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+(async function boot() {
+  Loader.show(() => "Loading");
+  const loaded = new Promise(res => els.vHouse.addEventListener("load", res, { once: true }));
+  els.vHouse.src = CABLES_URL;
+  await Promise.race([loaded, sleep(25000)]);
+  await sleep(CABLES_SETTLE);
+  showTitle();
+})();
+
+})();
+</script>
+</body>
+</html>
